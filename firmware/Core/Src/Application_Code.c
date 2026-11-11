@@ -1,0 +1,63 @@
+/*
+ * Application_Code.c
+ *
+ *  Created on: Jan 27, 2026
+ *      Author: willa
+ */
+
+#include "Application_Code.h"
+
+volatile uint8_t button_Pressed = 0;
+volatile Gyro_Direction_t gyro_Direction = GYRO_NONE;
+
+void sampleUserButton(){
+	if(HAL_GPIO_ReadPin(USER_BUTTON_PORT, USER_BUTTON_PIN) == GPIO_PIN_SET)
+		button_Pressed = 1;
+    else button_Pressed = 0;
+}
+
+Gyro_Direction_t getGyroDirection(void){
+    float angVel = Gyro_Get_Velocity();
+
+    if (angVel > FAST_THRESHOLD)
+        return GYRO_FAST_CCW;
+    else if (angVel > SLOW_THRESHOLD)
+        return GYRO_SLOW_CCW;
+    else if(angVel < ZERO_THRESHOLD && angVel > -ZERO_THRESHOLD)
+        return GYRO_NONE;
+    else if (angVel < -FAST_THRESHOLD)
+        return GYRO_FAST_CW;
+    else return GYRO_SLOW_CW;
+}
+
+void drive_LED(Gyro_Direction_t dir){
+    if (button_Pressed || dir == GYRO_SLOW_CCW || dir == GYRO_FAST_CCW)
+        HAL_GPIO_WritePin(GREEN_LED_PORT, GREEN_LED_PIN, GPIO_PIN_SET);
+    else HAL_GPIO_WritePin(GREEN_LED_PORT, GREEN_LED_PIN, GPIO_PIN_RESET);
+
+    if(button_Pressed && (dir == GYRO_FAST_CW || dir == GYRO_SLOW_CW || dir == GYRO_NONE))
+        HAL_GPIO_WritePin(RED_LED_PORT, RED_LED_PIN, GPIO_PIN_SET);
+    else HAL_GPIO_WritePin(RED_LED_PORT, RED_LED_PIN, GPIO_PIN_RESET);
+}
+#if (LAB2_USE_INTERRUPT)
+	void HAL_SYSTICK_Callback(){
+		static uint32_t counter = 0;
+		counter++;
+
+		if((counter % 100) == 0){
+			gyro_Direction = getGyroDirection();
+			drive_LED(gyro_Direction);
+		}
+	}
+
+	void EXTI0_IRQHandler(void){
+		HAL_GPIO_EXTI_IRQHandler(USER_BUTTON_PIN);
+	}
+
+	void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
+		if(GPIO_Pin == USER_BUTTON_PIN){
+			sampleUserButton();
+			drive_LED(gyro_Direction);
+		}
+	}
+#endif
